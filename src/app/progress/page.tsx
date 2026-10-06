@@ -16,6 +16,7 @@ type PhotoDoc = {
 
 export default function ProgressGallery() {
   const [userId, setUserId] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PhotoDoc[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -24,9 +25,11 @@ export default function ProgressGallery() {
     signInAnonymously(auth)
       .then((userCredential) => {
         setUserId(userCredential.user.uid);
+        setAuthError(null);
       })
       .catch((error) => {
         console.error("Auth error:", error);
+        setAuthError(error.message);
       });
   }, []);
 
@@ -96,6 +99,7 @@ export default function ProgressGallery() {
   // 3. Handle File Upload (Save Base64 to Firestore)
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
+    if (authError) return alert('เกิดข้อผิดพลาดในการยืนยันตัวตน (Authentication): ' + authError + '\nกรุณาเช็คว่าเปิด Anonymous Login ใน Firebase แล้วหรือยัง');
     if (!userId) return alert('รอเชื่อมต่อฐานข้อมูลสักครู่...');
 
     const file = e.target.files[0];
@@ -164,18 +168,34 @@ export default function ProgressGallery() {
                 <p className="text-sm font-bold">กำลังประมวลผลรูปภาพ...</p>
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center bg-white text-indigo-600 font-bold py-4 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors shadow-sm">
-                <div className="flex items-center gap-2">
-                  <Upload size={20} />
-                  <span>อัปโหลดรูปภาพใหม่</span>
-                </div>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={handleFileChange}
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col items-center justify-center bg-white text-indigo-600 font-bold py-4 rounded-2xl cursor-pointer hover:bg-blue-50 transition-colors shadow-sm text-sm">
+                  <div className="flex flex-col items-center gap-1">
+                    <Camera size={24} />
+                    <span>ถ่ายรูปตอนนี้</span>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="environment"
+                    className="hidden" 
+                    onChange={handleFileChange}
+                  />
+                </label>
+                
+                <label className="flex flex-col items-center justify-center bg-indigo-700 text-white font-bold py-4 rounded-2xl cursor-pointer hover:bg-indigo-800 transition-colors shadow-sm text-sm border border-indigo-500">
+                  <div className="flex flex-col items-center gap-1">
+                    <ImageIcon size={24} />
+                    <span>เลือกจากอัลบั้ม</span>
+                  </div>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleFileChange}
+                  />
+                </label>
+              </div>
             )}
           </div>
         </div>
