@@ -368,9 +368,9 @@ export default function ProgressGallery() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/95 flex flex-col"
+            className="fixed inset-0 z-[100] bg-black/95 flex flex-col"
           >
-            <div className="flex justify-between items-center p-4 text-white">
+            <div className="flex justify-between items-center p-4 pt-8 text-white">
               <div className="text-sm">
                 <p className="font-bold">{format(enlargedPhoto.timestamp, 'd MMMM yyyy')}</p>
                 {enlargedPhoto.weightAtTime && <p className="text-white/60">น้ำหนัก: {enlargedPhoto.weightAtTime} กก.</p>}
@@ -392,7 +392,7 @@ export default function ProgressGallery() {
               />
             </div>
 
-            <div className="p-6 flex justify-center gap-6">
+            <div className="p-6 pb-12 flex justify-center gap-8">
               <button 
                 onClick={() => {
                   const a = document.createElement('a');
