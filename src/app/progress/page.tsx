@@ -39,8 +39,7 @@ export default function ProgressGallery() {
 
     const q = query(
       collection(db, 'progress_photos'),
-      where('userId', '==', userId),
-      orderBy('timestamp', 'desc')
+      where('userId', '==', userId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -48,7 +47,13 @@ export default function ProgressGallery() {
       snapshot.forEach((doc) => {
         docs.push({ id: doc.id, ...doc.data() } as PhotoDoc);
       });
+      
+      // เรียงลำดับจากใหม่ไปเก่าด้วย JavaScript แทน เพื่อป้องกันปัญหา Firestore Index 
+      docs.sort((a, b) => b.timestamp - a.timestamp);
+      
       setPhotos(docs);
+    }, (error) => {
+      console.error("Fetch photos error:", error);
     });
 
     return () => unsubscribe();
