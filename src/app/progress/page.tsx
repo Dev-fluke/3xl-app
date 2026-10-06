@@ -7,6 +7,8 @@ import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'fi
 import { auth, db } from '@/lib/firebase';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/components/AuthProvider';
+import { useUserData } from '@/hooks/useUserData';
 
 type PhotoDoc = {
   id: string;
@@ -16,7 +18,9 @@ type PhotoDoc = {
 };
 
 export default function ProgressGallery() {
-  const [userId, setUserId] = useState<string | null>(null);
+  const { userData } = useUserData();
+  const { user } = useAuth();
+  const userId = user?.uid;
   const [authError, setAuthError] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PhotoDoc[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -25,19 +29,6 @@ export default function ProgressGallery() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [enlargedPhoto, setEnlargedPhoto] = useState<PhotoDoc | null>(null);
-
-  // 1. Authenticate Anonymously
-  useEffect(() => {
-    signInAnonymously(auth)
-      .then((userCredential) => {
-        setUserId(userCredential.user.uid);
-        setAuthError(null);
-      })
-      .catch((error) => {
-        console.error("Auth error:", error);
-        setAuthError(error.message);
-      });
-  }, []);
 
   // 2. Listen to Photos from Firestore
   useEffect(() => {
@@ -116,10 +107,9 @@ export default function ProgressGallery() {
     try {
       const base64Image = await compressImage(file);
       let currentWeight = undefined;
-      const savedTdee = localStorage.getItem('tdee_data');
-      if (savedTdee) {
-        const parsed = JSON.parse(savedTdee);
-        if (parsed.weight) currentWeight = parseFloat(parsed.weight);
+      const tdeeData = userData?.tdee_data;
+      if (tdeeData && tdeeData.weight) {
+        currentWeight = parseFloat(tdeeData.weight);
       }
 
       await addDoc(collection(db, 'progress_photos'), {

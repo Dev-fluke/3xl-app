@@ -38,7 +38,10 @@ ChartJS.register(
   Legend
 );
 
+import { useUserData } from '@/hooks/useUserData';
+
 export default function CalendarStats() {
+  const { userData, updateData } = useUserData();
   const [currentDate, setCurrentDate] = useState(new Date());
   
   // States
@@ -50,8 +53,10 @@ export default function CalendarStats() {
   const [activeTab, setActiveTab] = useState<'habits' | 'weight' | 'sleep'>('habits');
 
   useEffect(() => {
+    if (!userData) return;
+
     // 1. Load Check-in History
-    const data = JSON.parse(localStorage.getItem('checkin_history') || '{}');
+    const data = userData.checkin_history || {};
     if (Object.keys(data).length === 0) {
       const fakeData: Record<string, any> = {};
       const today = new Date();
@@ -64,7 +69,7 @@ export default function CalendarStats() {
     } else setHistory(data);
 
     // 2. Load Weight History
-    const wData = JSON.parse(localStorage.getItem('weight_history') || '{}');
+    const wData = userData.weight_history || {};
     if (Object.keys(wData).length === 0) {
       const fakeWData: Record<string, number> = {};
       const today = new Date();
@@ -79,22 +84,21 @@ export default function CalendarStats() {
     } else setWeightHistory(wData);
 
     // 3. Load Sleep History
-    const sData = JSON.parse(localStorage.getItem('sleep_history') || '{}');
+    const sData = userData.sleep_history || {};
     if (Object.keys(sData).length === 0) {
       const fakeSData: Record<string, { durationHours: number }> = {};
       const today = new Date();
       for(let i=14; i>=0; i--) {
         const d = new Date(today);
         d.setDate(today.getDate() - i);
-        // Random sleep between 5 to 9 hours
         fakeSData[format(d, 'yyyy-MM-dd')] = { durationHours: 5 + Math.random() * 4 };
       }
       setSleepHistory(fakeSData);
     } else setSleepHistory(sData);
 
-  }, []);
+  }, [userData]);
 
-  const handleSaveWeight = (e: React.FormEvent) => {
+  const handleSaveWeight = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!todayWeight) return;
     const numWeight = parseFloat(todayWeight);
@@ -102,24 +106,23 @@ export default function CalendarStats() {
     
     const newWeightHistory = { ...weightHistory, [todayStr]: numWeight };
     setWeightHistory(newWeightHistory);
-    localStorage.setItem('weight_history', JSON.stringify(newWeightHistory));
+    await updateData('weight_history', newWeightHistory);
     
-    const tdeeData = localStorage.getItem('tdee_data');
-    if (tdeeData) {
-      const parsedTdee = JSON.parse(tdeeData);
+    if (userData?.tdee_data) {
+      const parsedTdee = { ...userData.tdee_data };
       parsedTdee.weight = todayWeight;
-      localStorage.setItem('tdee_data', JSON.stringify(parsedTdee));
+      await updateData('tdee_data', parsedTdee);
     }
     setTodayWeight('');
     alert('บันทึกน้ำหนักเรียบร้อยแล้ว!');
   };
 
-  const handleDeleteWeight = (dateStr: string) => {
+  const handleDeleteWeight = async (dateStr: string) => {
     if (!window.confirm(`ต้องการลบน้ำหนักของวันที่ ${format(new Date(dateStr), 'd MMM yyyy')} ใช่หรือไม่?`)) return;
     const newWeightHistory = { ...weightHistory };
     delete newWeightHistory[dateStr];
     setWeightHistory(newWeightHistory);
-    localStorage.setItem('weight_history', JSON.stringify(newWeightHistory));
+    await updateData('weight_history', newWeightHistory);
   };
 
   const monthStart = startOfMonth(currentDate);

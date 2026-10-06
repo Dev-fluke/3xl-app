@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Dumbbell, Activity, Flame, Heart, Timer, CheckCircle2, ChevronDown, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useUserData } from '@/hooks/useUserData';
 
 // --- DATA: 4 Levels of Workout Plans ---
 
@@ -115,25 +116,21 @@ const activityLabels: Record<string, string> = {
 };
 
 export default function WorkoutGuide() {
+  const { userData } = useUserData();
   const [todayId, setTodayId] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   
   const [activityLvl, setActivityLvl] = useState('1.55');
 
   useEffect(() => {
-    // Get Activity Level from TDEE localstorage
-    const tdeeData = localStorage.getItem('tdee_data');
-    if (tdeeData) {
-      const parsed = JSON.parse(tdeeData);
-      if (parsed.activity) {
-        setActivityLvl(parsed.activity);
-      }
+    if (userData?.tdee_data?.activity) {
+      setActivityLvl(userData.tdee_data.activity);
     }
 
     const day = new Date().getDay(); 
     setTodayId(day);
     setExpandedId(day);
-  }, []);
+  }, [userData]);
 
   const toggleExpand = (id: number) => {
     if (expandedId === id) setExpandedId(null);

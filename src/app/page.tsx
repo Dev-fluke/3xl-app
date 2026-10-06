@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, X, Trophy, Moon, Sun } from 'lucide-react';
+import { Check, X, Trophy, Moon, Sun, Loader2 } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
+import { useUserData } from '@/hooks/useUserData';
 
 type Question = {
   id: string;
@@ -11,7 +12,7 @@ type Question = {
 };
 
 const getQuestionsForToday = (): Question[] => {
-  const day = new Date().getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const day = new Date().getDay(); 
   
   const coreQuestions: Question[] = [
     { id: 'q_meals', text: 'คุมอาหารหลัก 3 มื้อได้ดีไหม?' },
@@ -44,6 +45,7 @@ const getQuestionsForToday = (): Question[] => {
 };
 
 export default function Home() {
+  const { userData, updateData, loading } = useUserData();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, boolean>>({});
@@ -51,27 +53,32 @@ export default function Home() {
   const [isCompleted, setIsCompleted] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
   const [showSleepResult, setShowSleepResult] = useState<{ hours: number } | null>(null);
-
   const [dateStr, setDateStr] = useState('');
 
   useEffect(() => {
     setQuestions(getQuestionsForToday());
     setDateStr(format(new Date(), 'EEEE, d MMM yyyy'));
+  }, []);
+
+  useEffect(() => {
+    if (!userData) return;
     
     // Check sleep status first
-    const sleepStatus = JSON.parse(localStorage.getItem('sleep_status') || '{"isSleeping": false}');
+    const sleepStatus = userData.sleep_status || { isSleeping: false };
     if (sleepStatus.isSleeping) {
       setIsSleeping(true);
-      return; // Skip normal checkin init
+      return; 
     }
 
     // Check if already completed check-in today
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const history = JSON.parse(localStorage.getItem('checkin_history') || '{}');
+    const history = userData.checkin_history || {};
     if (history[todayStr]) {
       setIsCompleted(true);
+    } else {
+      setIsCompleted(false);
     }
-  }, []);
+  }, [userData]);
 
   const handleAnswer = (answer: boolean) => {
     const currentQ = questions[currentIndex];
@@ -85,10 +92,10 @@ export default function Home() {
     }
   };
 
-  const finishCheckin = (finalAnswers: Record<string, boolean>) => {
+  const finishCheckin = async (finalAnswers: Record<string, boolean>) => {
     setIsCompleted(true);
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const history = JSON.parse(localStorage.getItem('checkin_history') || '{}');
+    const history = { ...(userData?.checkin_history || {}) };
     
     const score = Object.values(finalAnswers).filter(Boolean).length;
     const total = questions.length;
@@ -100,37 +107,54 @@ export default function Home() {
       percentage: (score / total) * 100
     };
     
-    localStorage.setItem('checkin_history', JSON.stringify(history));
+    await updateData('checkin_history', history);
   };
 
-  const handleSleepClick = () => {
+  const handleSleepClick = async () => {
     const sleepData = { isSleeping: true, startTime: new Date().toISOString() };
-    localStorage.setItem('sleep_status', JSON.stringify(sleepData));
+    await updateData('sleep_status', sleepData);
     setIsSleeping(true);
   };
 
-  const handleWakeUpClick = () => {
-    const sleepStatus = JSON.parse(localStorage.getItem('sleep_status') || '{}');
+  const handleWakeUpClick = async () => {
+    const sleepStatus = userData?.sleep_status || {};
     if (!sleepStatus.startTime) return;
 
     const start = new Date(sleepStatus.startTime);
     const end = new Date();
     const mins = differenceInMinutes(end, start);
-    const hours = mins / 60; // For testing, even if it's 0.01 hours, we calculate it
+    const hours = mins / 60; 
 
-    // Save to sleep history using today's date
     const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const sleepHistory = JSON.parse(localStorage.getItem('sleep_history') || '{}');
+    const sleepHistory = { ...(userData?.sleep_history || {}) };
     sleepHistory[todayStr] = { durationHours: hours };
-    localStorage.setItem('sleep_history', JSON.stringify(sleepHistory));
-
-    // Clear sleep status
-    localStorage.setItem('sleep_status', JSON.stringify({ isSleeping: false }));
+    
+    await updateData('sleep_history', sleepHistory);
+    await updateData('sleep_status', { isSleeping: false });
+    
     setIsSleeping(false);
     setShowSleepResult({ hours });
   };
 
-  if (questions.length === 0) return <div className="p-4">Loading...</div>;
+  const handleResetTest = async () => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const history = { ...(userData?.checkin_history || {}) };
+    delete history[todayStr];
+    await updateData('checkin_history', history);
+    
+    setIsCompleted(false);
+    setCurrentIndex(0);
+    setAnswers({});
+  };
+
+  if (loading || questions.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-4" />
+        <p className="text-sm font-bold text-slate-500">กำลังโหลดข้อมูล...</p>
+      </div>
+    );
+  }
 
   // --- RENDER SLEEP RESULT MODAL ---
   if (showSleepResult) {
@@ -153,7 +177,7 @@ export default function Home() {
           )}
 
           <button 
-            onClick={() => { setShowSleepResult(null); setIsCompleted(true); }} // Return to completed state for today
+            onClick={() => { setShowSleepResult(null); setIsCompleted(true); }} 
             className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition"
           >
             เริ่มต้นวันใหม่
@@ -208,7 +232,7 @@ export default function Home() {
               className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 flex flex-col items-center text-center absolute"
               drag="x"
               dragConstraints={{ left: 0, right: 0 }}
-              onDragEnd={(e, { offset, velocity }) => {
+              onDragEnd={(e, { offset }) => {
                 const swipe = offset.x;
                 if (swipe < -50) handleAnswer(false);
                 else if (swipe > 50) handleAnswer(true);
@@ -268,15 +292,7 @@ export default function Home() {
               </button>
 
               <button 
-                onClick={() => {
-                  const todayStr = format(new Date(), 'yyyy-MM-dd');
-                  const history = JSON.parse(localStorage.getItem('checkin_history') || '{}');
-                  delete history[todayStr];
-                  localStorage.setItem('checkin_history', JSON.stringify(history));
-                  setIsCompleted(false);
-                  setCurrentIndex(0);
-                  setAnswers({});
-                }}
+                onClick={handleResetTest}
                 className="text-xs text-slate-400 font-medium underline underline-offset-4"
               >
                 ทำแบบประเมินใหม่ (ทดสอบ)

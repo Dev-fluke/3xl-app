@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Calculator, Clock, Utensils, Shuffle, Coffee, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useUserData } from '@/hooks/useUserData';
 
 // Category 1: ทั่วไป (20 รายการ)
 const mealsGeneral = [
@@ -174,6 +175,7 @@ const getPracticalDetails = (name: string, protein: number, cals: number, portio
 };
 
 export default function TDEECalculator() {
+  const { userData, updateData } = useUserData();
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [age, setAge] = useState('');
@@ -200,13 +202,22 @@ export default function TDEECalculator() {
   const [elapsedTimeStr, setElapsedTimeStr] = useState('00:00:00');
 
   useEffect(() => {
-    const savedFasting = localStorage.getItem('if_status');
-    if (savedFasting) {
-      const data = JSON.parse(savedFasting);
-      setIsFasting(data.isFasting);
-      setFastingStartTime(data.startTime);
+    if (userData?.tdee_data) {
+      const data = userData.tdee_data;
+      if (!weight && data.weight) setWeight(data.weight);
+      if (!height && data.height) setHeight(data.height);
+      if (!age && data.age) setAge(data.age);
+      if (data.gender) setGender(data.gender);
+      if (data.activity) setActivity(data.activity);
+      if (data.category) setMealCategory(data.category);
     }
-  }, []);
+    
+    if (userData?.if_status) {
+      const data = userData.if_status;
+      setIsFasting(data.isFasting || false);
+      setFastingStartTime(data.startTime || null);
+    }
+  }, [userData]);
 
   useEffect(() => {
     let interval: any;
@@ -229,12 +240,12 @@ export default function TDEECalculator() {
   const toggleFasting = () => {
     if (isFasting) {
       setIsFasting(false);
-      localStorage.setItem('if_status', JSON.stringify({ isFasting: false, startTime: null }));
+      updateData('if_status', { isFasting: false, startTime: null });
     } else {
       setIsFasting(true);
       const now = new Date().toISOString();
       setFastingStartTime(now);
-      localStorage.setItem('if_status', JSON.stringify({ isFasting: true, startTime: now }));
+      updateData('if_status', { isFasting: true, startTime: now });
     }
   };
 
@@ -301,42 +312,30 @@ export default function TDEECalculator() {
   }, [mealCategory]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('tdee_data');
-    let initialResult = null;
-    
-    if (saved) {
-      const data = JSON.parse(saved);
-      setWeight(data.weight);
-      setHeight(data.height);
-      setAge(data.age);
-      setGender(data.gender);
-      setActivity(data.activity);
-      
-      if (data.targetWeight) setTargetWeight(data.targetWeight);
-      if (data.targetMonths) setTargetMonths(data.targetMonths);
-      if (data.mealCategory) setMealCategory(data.mealCategory);
-
-      initialResult = calculateLogic(
-        data.weight, data.height, data.age, data.gender, data.activity, 
-        data.targetWeight || '', data.targetMonths || ''
-      );
-      setResult(initialResult);
-      randomizeMeals(initialResult, data.mealCategory || 'general');
-    } else {
-      randomizeMeals(null, 'general');
+    // Only randomize meals if we haven't yet, avoiding infinite loops with userData
+    if (dailyMeals.length === 0) {
+      if (userData?.tdee_data) {
+        const data = userData.tdee_data;
+        const initialResult = calculateLogic(
+          data.weight, data.height, data.age, data.gender, data.activity, 
+          data.targetWeight || '', data.targetMonths || ''
+        );
+        setResult(initialResult);
+        randomizeMeals(initialResult, data.category || 'general');
+      } else {
+        randomizeMeals(null, 'general');
+      }
     }
-  }, [randomizeMeals]);
+  }, [userData, dailyMeals.length, randomizeMeals]);
 
   const handleCategoryChange = (cat: MealCategory) => {
     setMealCategory(cat);
     randomizeMeals(result, cat);
     
-    const saved = localStorage.getItem('tdee_data');
-    if (saved) {
-      const data = JSON.parse(saved);
-      localStorage.setItem('tdee_data', JSON.stringify({
-        ...data, mealCategory: cat
-      }));
+    if (userData?.tdee_data) {
+      updateData('tdee_data', {
+        ...userData.tdee_data, category: cat
+      });
     }
   };
 
@@ -394,9 +393,9 @@ export default function TDEECalculator() {
     const res = calculateLogic(w, h, a, g, act, tw, tm);
     if (res) {
       setResult(res);
-      localStorage.setItem('tdee_data', JSON.stringify({
-        weight: w, height: h, age: a, gender: g, activity: act, targetWeight: tw, targetMonths: tm, mealCategory
-      }));
+      updateData('tdee_data', {
+        weight: w, height: h, age: a, gender: g, activity: act, targetWeight: tw, targetMonths: tm, category: mealCategory
+      });
       randomizeMeals(res, mealCategory);
     }
   };

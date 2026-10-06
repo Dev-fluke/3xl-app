@@ -24,6 +24,8 @@ export const metadata: Metadata = {
   },
 };
 
+import AuthProvider from "@/components/AuthProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -35,8 +37,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-100 flex justify-center`}
       >
         <div className="w-full max-w-md min-h-screen bg-white relative pb-16 shadow-xl overflow-x-hidden">
-          {children}
-          <BottomNav />
+          <AuthProvider>
+            {children}
+            <BottomNav />
+          </AuthProvider>
         </div>
       </body>
     </html>
