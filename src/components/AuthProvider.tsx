@@ -75,9 +75,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const loginWithGoogle = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed", error);
-      alert('เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่');
+      alert('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
     }
   };
 
