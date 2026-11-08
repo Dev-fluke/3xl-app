@@ -25,49 +25,69 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const [isMigrating, setIsMigrating] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      // If user is anonymous, we shouldn't treat them as a fully logged in user for this app scope
-      if (currentUser && currentUser.isAnonymous) {
-        // Sign out the anonymous user so they can login properly
-        await signOut(auth);
-        setUser(null);
-      } else {
-        setUser(currentUser);
-        
-        // If they just logged in, check if we need to migrate LocalStorage data
-        if (currentUser) {
-          await migrateLocalDataToCloud(currentUser.uid);
-        }
-      }
+    // Safety timeout: Never leave user stuck on loading screen longer than 4 seconds
+    const timeout = setTimeout(() => {
       setLoading(false);
+      setIsMigrating(false);
+    }, 4000);
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      try {
+        if (currentUser && currentUser.isAnonymous) {
+          await signOut(auth);
+          setUser(null);
+        } else {
+          setUser(currentUser);
+          if (currentUser) {
+            try {
+              await migrateLocalDataToCloud(currentUser.uid);
+            } catch (err) {
+              console.warn("Migration failed or already done:", err);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Auth state handling error:", err);
+      } finally {
+        clearTimeout(timeout);
+        setLoading(false);
+        setIsMigrating(false);
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      unsubscribe();
+    };
   }, []);
 
   const migrateLocalDataToCloud = async (uid: string) => {
-    const userDocRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userDocRef);
-    
-    // Only migrate if they don't have cloud data yet
-    if (!userDoc.exists()) {
-      setIsMigrating(true);
+    try {
+      const userDocRef = doc(db, 'users', uid);
+      const userDoc = await getDoc(userDocRef);
       
-      const checkin_history = JSON.parse(localStorage.getItem('checkin_history') || '{}');
-      const weight_history = JSON.parse(localStorage.getItem('weight_history') || '{}');
-      const sleep_history = JSON.parse(localStorage.getItem('sleep_history') || '{}');
-      const tdee_data = JSON.parse(localStorage.getItem('tdee_data') || '{}');
-      const if_status = JSON.parse(localStorage.getItem('if_status') || '{}');
+      // Only migrate if they don't have cloud data yet
+      if (!userDoc.exists()) {
+        setIsMigrating(true);
+        
+        const checkin_history = JSON.parse(localStorage.getItem('checkin_history') || '{}');
+        const weight_history = JSON.parse(localStorage.getItem('weight_history') || '{}');
+        const sleep_history = JSON.parse(localStorage.getItem('sleep_history') || '{}');
+        const tdee_data = JSON.parse(localStorage.getItem('tdee_data') || '{}');
+        const if_status = JSON.parse(localStorage.getItem('if_status') || '{}');
 
-      await setDoc(userDocRef, {
-        checkin_history,
-        weight_history,
-        sleep_history,
-        tdee_data,
-        if_status,
-        createdAt: new Date().toISOString()
-      });
-      
+        await setDoc(userDocRef, {
+          checkin_history,
+          weight_history,
+          sleep_history,
+          tdee_data,
+          if_status,
+          createdAt: new Date().toISOString()
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to check/migrate local data to cloud:", err);
+    } finally {
       setIsMigrating(false);
     }
   };
@@ -76,8 +96,23 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      console.error("Login failed", error);
-      alert('เข้าสู่ระบบไม่สำเร็จ: ' + error.message);
+      console.error("Login with popup failed", error);
+      // If popup is blocked by mobile browser/PWA, try redirect
+      if (
+        error?.code === 'auth/popup-blocked' ||
+        error?.code === 'auth/cancelled-popup-request' ||
+        error?.code === 'auth/popup-closed-by-user'
+      ) {
+        try {
+          const { signInWithRedirect } = await import('firebase/auth');
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectError: any) {
+          alert('เข้าสู่ระบบไม่สำเร็จ: ' + (redirectError.message || redirectError.code));
+          return;
+        }
+      }
+      alert('เข้าสู่ระบบไม่สำเร็จ: ' + (error.message || error.code));
     }
   };
 

@@ -9,7 +9,10 @@ export function useUserData() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const unsubscribe = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
       if (docSnap.exists()) {
@@ -24,6 +27,17 @@ export function useUserData() {
           if_status: {}
         });
       }
+      setLoading(false);
+    }, (error) => {
+      console.warn("Firestore onSnapshot error (falling back to local cache):", error);
+      // Fallback so the app never gets permanently stuck on a loading screen
+      setUserData({
+        checkin_history: JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('checkin_history') || '{}' : '{}'),
+        weight_history: JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('weight_history') || '{}' : '{}'),
+        sleep_history: JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('sleep_history') || '{}' : '{}'),
+        tdee_data: JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('tdee_data') || '{}' : '{}'),
+        if_status: JSON.parse(typeof window !== 'undefined' ? localStorage.getItem('if_status') || '{}' : '{}'),
+      });
       setLoading(false);
     });
 
