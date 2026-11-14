@@ -119,9 +119,13 @@ export default function ProgressGallery() {
         weightAtTime: currentWeight
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Upload error:", error);
-      alert('อัปโหลดไม่สำเร็จ (ไฟล์อาจใหญ่เกินไป)');
+      if (error?.code === 'permission-denied') {
+        alert('อัปโหลดไม่สำเร็จ (Permission Denied): ฐานข้อมูลไม่อนุญาตให้อัปโหลดรูป กรุณาตรวจสอบ Firestore Rules');
+      } else {
+        alert('อัปโหลดไม่สำเร็จ: ' + (error?.message || 'ไฟล์อาจใหญ่เกินไป'));
+      }
     } finally {
       setIsUploading(false);
       // Reset input value to allow uploading same file again if needed
